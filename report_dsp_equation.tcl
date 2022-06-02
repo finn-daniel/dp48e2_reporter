@@ -4,24 +4,8 @@ proc report_dsp_equation {dsp_cell_name} {
 	# check dsp cell name
 	if { [string match DSP48E2 [get_property REF_NAME [get_cells $dsp_cell_name]]] } {
 
-		# get control inputs
-		set opmode [get_port_connection $dsp_cell_name "OPMODE"]
-		puts "OPMODE: $opmode"
-		set alumode [get_port_connection $dsp_cell_name "ALUMODE"]
-		puts "ALUMODE: $alumode"
-		set cinsel [get_port_connection $dsp_cell_name "CARRYINSEL"]
-		puts "CARRYINSEL: $cinsel"
-
-		# decode multiplexer outputs
-		set w [get_wmux $opmode]
-		set x [get_xmux $opmode]
-		set y [get_ymux $opmode]
-		set z [get_zmux $opmode]
-		set cin [get_cinmux $cinsel]
-
-		set equation [get_alu_equation $w $x $y $z $cin $alumode]
-
-		get_multiplier_inputs $dsp_cell_name
+		# set equation [get_alu_equation $w $x $y $z $cin $alumode]
+		set equation [get_alu_equation $dsp_cell_name]
 
 	# bad dsp cell name
 	} else {
@@ -29,7 +13,7 @@ proc report_dsp_equation {dsp_cell_name} {
 	}
 }
 
-proc get_multiplier_inputs {dsp_cell_name} {
+proc get_mult_equation {dsp_cell_name} {
 	# get inmode
 	set inmode [get_port_connection $dsp_cell_name "INMODE"]
 	puts "INMODE: $inmode"
@@ -153,8 +137,12 @@ proc get_multiplier_inputs {dsp_cell_name} {
 	puts "MULT_DATA_A: $mult_data_a"
 	puts "MULT_DATA_B: $mult_data_b"
 
-	return "$mult_data_a x $mult_data_b"
-
+	set mreg [get_property MREG [get_cells $dsp_cell_name]]
+	if {$mreg == 1} {
+		return "($mult_data_a x $mult_data_b)'"
+	} else {
+		return "($mult_data_a x $mult_data_b)"
+	}
 }
 
 # Return DSP external port connection as binary string. Expects the port connection 
@@ -185,7 +173,7 @@ proc get_port_connection {dsp_cell_name port_name} {
 				} elseif { [regexp const1 $net] } {
 					set port_connection [concat 1$port_connection]
 				} else {
-					puts "That port's hooked up to a non-static net. I ain't smart enough to handle that."
+					puts "That port's hooked up to a non-static net. I don't know how to handle that."
 					return -1
 				}
 			}
@@ -197,57 +185,82 @@ proc get_port_connection {dsp_cell_name port_name} {
 	}
 }
 
-proc get_wmux {opmode} {
+proc get_wmux {dsp_cell_name opmode} {
 	set wsel [string range $opmode 0 1]
 
 	# determine W mux configuration
 	switch $wsel 00 {
 		set wmux "0"
 	} 01 {
-		set wmux "P"
+		set preg [get_property PREG [get_cells $dsp_cell_name]]
+		set wmux "P$preg"
 	} 10 {
-		set wmux "RND"
+		set rnd [get_property RND [get_cells $dsp_cell_name]]
+		set wmux "RND: $rnd"
 	} 11 {
-		set wmux "C"
+		set creg [get_property CREG [get_cells $dsp_cell_name]]
+		set wmux "C$creg"
 	}
-	puts "W mux setting: $wmux" 
+	puts "W mux setting: $wmux"
 	return $wmux
 }
-proc get_xmux {opmode} {
+
+proc get_xmux {dsp_cell_name opmode} {
 
 	set xsel [string range $opmode 7 8]
+
 	# determine X mux configuration
 	switch $xsel 00 {
 		set xmux "0"
 	} 01 {
-		set xmux "M"
+		set mreg [get_property MREG [get_cells $dsp_cell_name]]
+		set xmux "M$mreg"
 	} 10 {
-		set xmux "P"
+		set preg [get_property PREG [get_cells $dsp_cell_name]]
+		set xmux "P$preg"
 	} 11 {
-		set xmux "A:B"
+		set areg [get_property AREG [get_cells $dsp_cell_name]]
+		switch $areg 0 {
+			set a "A0"
+		} 1 {
+			set a "A2"
+		} 2 {
+			set a "A''"
+		}
+		set breg [get_property BREG [get_cells $dsp_cell_name]]
+		switch $breg 0 {
+			set b "B0"
+		} 1 {
+			set b "B2"
+		} 2 {
+			set b "B''"
+		}
+		set xmux "$a:$b"
 	}
 	puts "X mux setting: $xmux" 
 	return $xmux
 }
 
-proc get_ymux {opmode} {
+proc get_ymux {dsp_cell_name opmode} {
 	set ysel [string range $opmode 5 6]
 
 	# determine Y mux configuration
 	switch $ysel 00 {
 		set ymux "0"
 	} 01 {
-		set ymux "M"
+		set mreg [get_property MREG [get_cells $dsp_cell_name]]
+		set ymux "M$mreg"
 	} 10 {
 		set ymux "48'hFFFFFFFFFFFF"
 	} 11 {
-		set ymux "C"
+		set creg [get_property CREG [get_cells $dsp_cell_name]]
+		set ymux "C$creg"
 	}
 	puts "Y mux setting: $ymux" 
 	return $ymux
 }
 
-proc get_zmux {opmode} {
+proc get_zmux {dsp_cell_name opmode} {
 	
 	set zsel [string range $opmode 2 4]
 
@@ -255,58 +268,93 @@ proc get_zmux {opmode} {
 	switch $zsel 000 {
 		set zmux "0"
 	} 001 {
-		set zmux "PCIN"
+		set pcin [get_port_connection $dsp_cell_name "PCIN"]
+		set zmux "PCIN: $pcin"
 	} 010 {
-		set zmux "P"
+		set preg [get_property PREG [get_cells $dsp_cell_name]]
+		set zmux "P$preg"
 	} 011 {
-		set zmux "C"
+		set creg [get_property CREG [get_cells $dsp_cell_name]]
+		set zmux "C$creg"
 	} 100 {
-		set zmux "P"
+		set preg [get_property PREG [get_cells $dsp_cell_name]]
+		set zmux "P$preg"
 	} 101 {
-		set zmux "17b shift (PCIN)"
+		set pcin [get_port_connection $dsp_cell_name "PCIN"]
+		set zmux "(PCIN: $pcin << 17)"
 	} 110 {
-		set zmux "17b shift (P)"
+		set preg [get_property PREG [get_cells $dsp_cell_name]]
+		set zmux "(P$preg << 17)"
 	} 111 {
 		set zmux "xx"
 	}
 	puts "Z mux setting $zmux"
 	return $zmux
-
 }
 
-proc get_cinmux {cinsel} {
+proc get_cinmux {dsp_cell_name} {
+
+	set cinsel [get_port_connection $dsp_cell_name "CARRYINSEL"]
+	puts "CARRYINSEL: $cinsel"
+	
 	switch $cinsel 000 {
-		set cin "CARRYIN"
+		set cin_setting "CARRYIN"
+		set cin_connection [get_port_connection $dsp_cell_name "CARRYIN"]
 	} 001 {
-		set cin "~PCIN[47]"
+		set cin_setting "~PCIN\[47\]"
+		set cin_connection ![get_port_connection $dsp_cell_name "PCIN[47]"]
 	} 010 {
-		set cin "CARRYCASCIN"
+		set cin_setting "CARRYCASCIN"
+		set cin_connection [get_port_connection $dsp_cell_name "CARRYCASCIN"]
 	} 011 {
-		set cin "PCIN[47]"
+		set cin_setting "PCIN\[47\]"
+		set cin_connection [get_port_connection $dsp_cell_name "PCIN[47]"]
 	} 100 {
-		set cin "CARRYCASCOUT"
+		set cin_setting "CARRYCASCOUT"
+		set cin_connection [get_port_connection $dsp_cell_name "CARRYCASCOUT"]
 	} 101 {
-		set cin "~P[47]"
+		set cin_setting "~P\[47\]"
+		set cin_connection ![get_port_connection $dsp_cell_name "P[47]"]
 	} 110 {
-		set cin "A[26] XNOR B[17]"
+		set cin_setting "A\[26\] XNOR B\[17\]"
+		set a [get_port_connection $dsp_cell_name "A[26]"]
+		set b [get_port_connection $dsp_cell_name "B[17]"]
+		set cin_connection "($a XOR $b)"
 	} 111 {
-		set cin "P[47]"
+		set cin_setting "P[47]"
+		set cin_connection [get_port_connection $dsp_cell_name "P[47]"]
 	}
-	puts "CINmux setting: $cin"
-	return $cin
+	puts "CINmux setting: $cin_setting ($cin_connection)"
+	return $cin_connection
 }
 
-proc get_alu_equation {w x y z cin alumode} {
+proc get_alu_equation {dsp_cell_name} {
+
+	# get control inputs
+	set opmode [get_port_connection $dsp_cell_name "OPMODE"]
+	puts "OPMODE: $opmode"
+	set alumode [get_port_connection $dsp_cell_name "ALUMODE"]
+	puts "ALUMODE: $alumode"
+
+	# decode multiplexer outputs
+	set w [get_wmux $dsp_cell_name $opmode]
+	set x [get_xmux $dsp_cell_name $opmode]
+	set y [get_ymux $dsp_cell_name $opmode]
+	set z [get_zmux $dsp_cell_name $opmode]
+	set cin [get_cinmux $dsp_cell_name]
 
 	set alumode_lsb [string range $alumode 2 3]
 	set alumode_msb [string range $alumode 0 1]
 
 	if {$alumode_msb == 00} {
-		if {$x == $y} {
-			set xy $x
+
+		# handle x/y mux outputs
+		if {[string range $y 0 0] == "M"} {
+			set xy [get_mult_equation $dsp_cell_name]
 		} else {
 			set xy "$x + $y"
 		}
+
 		switch $alumode_lsb 00 {
 			puts "ALUMODE($alumode) selects Z+W+X+Y+CIN:"
 			set eq "$z + $w + $xy + $cin"
@@ -323,6 +371,5 @@ proc get_alu_equation {w x y z cin alumode} {
 	} else {
 		puts "ALUMODE selects Two-Input Logic Unit or Three-Input XOR Special Case (TBD, maybe)"
 	}
-	puts $eq
 	return $eq
 }

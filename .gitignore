@@ -1,1 +1,5 @@
-config
+*
+!dsp_test_fixture.sv
+!dsp_test_fixture.xpr
+!README.md
+!report_dsp_equation.tcl
