@@ -420,6 +420,13 @@ proc get_alu_equation {dsp_cell_name} {
 			}
 			set eq "$z - ($w + $xy + $cin)"
 		}
+		
+		# determine P output pipeline stages
+		set preg [get_property PREG [get_cells $dsp_cell_name]]
+		if {$preg == 1} {
+			set eq "($eq)'"
+		}
+
 	} else {
 		if {$verbose == 1} {
 			puts "ALUMODE selects Two-Input Logic Unit or Three-Input XOR Special Case (TBD, maybe)"
