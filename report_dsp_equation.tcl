@@ -1,11 +1,23 @@
 
-proc report_dsp_equation {dsp_cell_name} {
+proc report_dsp_equation {dsp_cell_name args} {
 
-	# check dsp cell name
+	global verbose
+	if {[llength $args] > 0} {
+		if {[lsearch -exact $args "-verbose"] >= 0} {
+			set verbose 1
+		} else {
+			set verbose 0
+		}
+	} else {
+		set verbose 0
+	}
+
+		# check dsp cell name
 	if { [string match DSP48E2 [get_property REF_NAME [get_cells $dsp_cell_name]]] } {
 
 		# set equation [get_alu_equation $w $x $y $z $cin $alumode]
 		set equation [get_alu_equation $dsp_cell_name]
+		puts "$dsp_cell_name : $equation"
 
 	# bad dsp cell name
 	} else {
@@ -15,8 +27,11 @@ proc report_dsp_equation {dsp_cell_name} {
 
 proc get_mult_equation {dsp_cell_name} {
 	# get inmode
+	global verbose
 	set inmode [get_port_connection $dsp_cell_name "INMODE"]
-	puts "INMODE: $inmode"
+	if {$verbose == 1} {
+		puts "INMODE: $inmode"
+	}
 
 	set inmode0 [string range $inmode 4 4]
 	set inmode1 [string range $inmode 3 3]
@@ -134,8 +149,11 @@ proc get_mult_equation {dsp_cell_name} {
 	} else {
 		puts "unknown value $bmultsel returned for $dsp_cell_name"
 	}
-	puts "MULT_DATA_A: $mult_data_a"
-	puts "MULT_DATA_B: $mult_data_b"
+
+	if {$verbose == 1} {
+		puts "MULT_DATA_A: $mult_data_a"
+		puts "MULT_DATA_B: $mult_data_b"
+	}
 
 	set mreg [get_property MREG [get_cells $dsp_cell_name]]
 	if {$mreg == 1} {
@@ -188,6 +206,8 @@ proc get_port_connection {dsp_cell_name port_name} {
 proc get_wmux {dsp_cell_name opmode} {
 	set wsel [string range $opmode 0 1]
 
+	global verbose
+
 	# determine W mux configuration
 	switch $wsel 00 {
 		set wmux "0"
@@ -201,7 +221,9 @@ proc get_wmux {dsp_cell_name opmode} {
 		set creg [get_property CREG [get_cells $dsp_cell_name]]
 		set wmux "C$creg"
 	}
-	puts "W mux setting: $wmux"
+	if {$verbose == 1} {
+		puts "W mux setting: $wmux"
+	}
 	return $wmux
 }
 
@@ -209,6 +231,8 @@ proc get_xmux {dsp_cell_name opmode} {
 
 	set xsel [string range $opmode 7 8]
 
+	global verbose
+	
 	# determine X mux configuration
 	switch $xsel 00 {
 		set xmux "0"
@@ -237,12 +261,16 @@ proc get_xmux {dsp_cell_name opmode} {
 		}
 		set xmux "$a:$b"
 	}
-	puts "X mux setting: $xmux" 
+	if {$verbose == 1} {
+		puts "X mux setting: $xmux" 
+	}
 	return $xmux
 }
 
 proc get_ymux {dsp_cell_name opmode} {
 	set ysel [string range $opmode 5 6]
+
+	global verbose
 
 	# determine Y mux configuration
 	switch $ysel 00 {
@@ -256,13 +284,17 @@ proc get_ymux {dsp_cell_name opmode} {
 		set creg [get_property CREG [get_cells $dsp_cell_name]]
 		set ymux "C$creg"
 	}
-	puts "Y mux setting: $ymux" 
+	if {$verbose == 1} {
+		puts "Y mux setting: $ymux" 
+	}
 	return $ymux
 }
 
 proc get_zmux {dsp_cell_name opmode} {
 	
 	set zsel [string range $opmode 2 4]
+
+	global verbose
 
 	# determine Z mux configuration
 	switch $zsel 000 {
@@ -288,14 +320,19 @@ proc get_zmux {dsp_cell_name opmode} {
 	} 111 {
 		set zmux "xx"
 	}
-	puts "Z mux setting $zmux"
+	if {$verbose == 1} {
+		puts "Z mux setting $zmux"
+	}
 	return $zmux
 }
 
 proc get_cinmux {dsp_cell_name} {
 
 	set cinsel [get_port_connection $dsp_cell_name "CARRYINSEL"]
-	puts "CARRYINSEL: $cinsel"
+	global verbose
+	if {$verbose == 1} {
+		puts "CARRYINSEL: $cinsel"
+	}
 	
 	switch $cinsel 000 {
 		set cin_setting "CARRYIN"
@@ -324,7 +361,9 @@ proc get_cinmux {dsp_cell_name} {
 		set cin_setting "P[47]"
 		set cin_connection [get_port_connection $dsp_cell_name "P[47]"]
 	}
-	puts "CINmux setting: $cin_setting ($cin_connection)"
+	if {$verbose == 1} {
+		puts "CINmux setting: $cin_setting ($cin_connection)"
+	}
 	return $cin_connection
 }
 
@@ -332,9 +371,14 @@ proc get_alu_equation {dsp_cell_name} {
 
 	# get control inputs
 	set opmode [get_port_connection $dsp_cell_name "OPMODE"]
-	puts "OPMODE: $opmode"
 	set alumode [get_port_connection $dsp_cell_name "ALUMODE"]
-	puts "ALUMODE: $alumode"
+
+	global verbose
+
+	if {$verbose == 1} {
+		puts "OPMODE: $opmode"
+		puts "ALUMODE: $alumode"
+	}
 
 	# decode multiplexer outputs
 	set w [get_wmux $dsp_cell_name $opmode]
@@ -356,20 +400,31 @@ proc get_alu_equation {dsp_cell_name} {
 		}
 
 		switch $alumode_lsb 00 {
-			puts "ALUMODE($alumode) selects Z+W+X+Y+CIN:"
+			if {$verbose == 1} {
+				puts "ALUMODE($alumode) selects Z+W+X+Y+CIN"
+			}
 			set eq "$z + $w + $xy + $cin"
 		} 01 {
-			puts "ALUMODE($alumode) selects -Z+(W+X+Y+CIN)-1:"
+			if {$verbose == 1} {
+				puts "ALUMODE($alumode) selects -Z+(W+X+Y+CIN)-1"
+			}
 			set eq "–$z + ($w + $xy + $cin) – 1"
 		} 10 {
-			puts "ALUMODE($alumode) selects -Z-W-X-Y-CIN-1:"
-			set eq "not(z + $w + $xy + $cin)"
+			if {$verbose == 1} {
+				puts "ALUMODE($alumode) selects -Z-W-X-Y-CIN-1"
+			}
+			set eq "not($z + $w + $xy + $cin)"
 		} 11 {
-			puts "ALUMODE($alumode) selects Z-(W+X+Y+CIN):"
+			if {$verbose == 1} {
+				puts "ALUMODE($alumode) selects Z-(W+X+Y+CIN)"
+			}
 			set eq "$z - ($w + $xy + $cin)"
 		}
 	} else {
-		puts "ALUMODE selects Two-Input Logic Unit or Three-Input XOR Special Case (TBD, maybe)"
+		if {$verbose == 1} {
+			puts "ALUMODE selects Two-Input Logic Unit or Three-Input XOR Special Case (TBD, maybe)"
+		}
+		set eq "TBD"
 	}
 	return $eq
 }
